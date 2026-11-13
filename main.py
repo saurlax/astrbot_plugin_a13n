@@ -1,24 +1,44 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star, register
-from astrbot.api import logger
+from astrbot.api import AstrBotConfig, logger
+from astrbot.api.star import Context, Star, StarTools
 
-@register("helloworld", "YourName", "一个简单的 Hello World 插件", "1.0.0")
-class MyPlugin(Star):
-    def __init__(self, context: Context):
+from .a13n_client import A13nClient
+from .conversations import Conversations
+from .dify import DifyBridge
+
+
+class A13nPlugin(Star):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
+        self.config = config
+        self.bridge: DifyBridge | None = None
 
-    async def initialize(self):
-        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+    async def initialize(self) -> None:
+        service_url = self.config["service_url"].strip().rstrip("/")
+        api_key = self.config["service_api_key"].strip()
+        agent_id = self.config["agent_id"].strip()
+        bridge_key = self.config["bridge_key"].strip()
+        if not all((service_url, api_key, agent_id, bridge_key)):
+            logger.info(
+                "Configure a13n for AstrBot, then reload the plugin to start it."
+            )
+            return
+        if len(bridge_key) < 24 or not bridge_key.isascii() or not bridge_key.isalnum():
+            raise ValueError(
+                "The bridge key must contain at least 24 ASCII letters or digits."
+            )
+        if bridge_key == api_key:
+            raise ValueError("Use a separate key for the local bridge.")
+        port = self.config["port"]
+        timeout = self.config["timeout_seconds"]
+        if not 1 <= port <= 65535 or timeout <= 0:
+            raise ValueError("Configure a valid TCP port and a positive timeout.")
+        service = A13nClient(service_url, api_key, agent_id)
+        store = Conversations(StarTools.get_data_dir("astrbot_plugin_a13n"))
+        self.bridge = DifyBridge(service, store, bridge_key, timeout)
+        await self.bridge.start(port)
+        logger.info(f"a13n for AstrBot is listening on http://127.0.0.1:{port}/v1")
 
-    # 注册指令的装饰器。指令名为 helloworld。注册成功后，发送 `/helloworld` 就会触发这个指令，并回复 `你好, {user_name}!`
-    @filter.command("helloworld")
-    async def helloworld(self, event: AstrMessageEvent):
-        """这是一个 hello world 指令""" # 这是 handler 的描述，将会被解析方便用户了解插件内容。建议填写。
-        user_name = event.get_sender_name()
-        message_str = event.message_str # 用户发的纯文本消息字符串
-        message_chain = event.get_messages() # 用户所发的消息的消息链 # from astrbot.api.message_components import *
-        logger.info(message_chain)
-        yield event.plain_result(f"Hello, {user_name}, 你发了 {message_str}!") # 发送一条纯文本消息
-
-    async def terminate(self):
-        """可选择实现异步的插件销毁方法，当插件被卸载/停用时会调用。"""
+    async def terminate(self) -> None:
+        if self.bridge is not None:
+            await self.bridge.close()
+            self.bridge = None

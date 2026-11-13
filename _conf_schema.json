@@ -1,0 +1,40 @@
+{
+  "service_url": {
+    "description": "a13n Service URL",
+    "hint": "Base URL of the Service without /api/v1.",
+    "type": "string",
+    "default": ""
+  },
+  "service_api_key": {
+    "description": "a13n workspace API key",
+    "hint": "Use a workspace key whose principal can read and run.",
+    "type": "string",
+    "secret": true,
+    "default": ""
+  },
+  "agent_id": {
+    "description": "a13n Agent ID",
+    "hint": "The ID of a text-output Agent in this workspace.",
+    "type": "string",
+    "default": ""
+  },
+  "bridge_key": {
+    "description": "Local bridge key",
+    "hint": "Generate a separate random key with at least 24 ASCII letters or digits. Copy it to the Dify API Key field.",
+    "type": "string",
+    "secret": true,
+    "default": ""
+  },
+  "port": {
+    "description": "Local HTTP port",
+    "hint": "Set the Dify API Base to http://127.0.0.1:<port>/v1.",
+    "type": "int",
+    "default": 18767
+  },
+  "timeout_seconds": {
+    "description": "Run timeout in seconds",
+    "hint": "Set the Dify Runner timeout higher than this value.",
+    "type": "int",
+    "default": 90
+  }
+}
